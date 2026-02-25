@@ -1,63 +1,126 @@
 """
-examples/claude_api.py — Cortex + Claude API (Anthropic SDK)
+examples/claude_api.py — Cortex + Claude API
 
-Every conversation turn:
-  1. Query memory with the user's message → top-K relevant memories
-  2. Inject memories into the system prompt as <memory> context
-  3. Call Claude
-  4. Store Claude's response asynchronously
+Portable memory with the Anthropic SDK. The memory file accumulates
+context across sessions and across tools — the same .memory file works
+with Claude Code hooks, this script, or any other harness.
 
-The memory file accumulates across sessions. Move it between machines freely.
+Typical workflow:
+  - Run Claude Code with hooks for daily development sessions
+    (memory auto-populates from those sessions)
+  - Run this script for interactive Q&A against the accumulated memory
+  - The same project.memory file is used by both
 
 Requirements:
     pip install anthropic
     export ANTHROPIC_API_KEY=sk-ant-...
+
+Usage:
+    python claude_api.py                          # uses ./project.memory
+    python claude_api.py --memory /path/to/file   # any .memory file
+    python claude_api.py --topic "auth service"   # focus initial retrieval
 """
 
-import sys, os
+import sys, os, argparse
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from harness import ClaudeMemoryHarness
 
-MEMORY_FILE = "project.memory"
 
-harness = ClaudeMemoryHarness(
-    MEMORY_FILE,
-    model="claude-opus-4-5",
-    system_prompt=(
-        "You are a technical assistant with deep context about this project. "
-        "Use the memories provided to give informed, continuous answers. "
-        "When you make a decision or solve a problem, summarize it concisely."
-    ),
-    top_k=5,
-    store_responses=True,
-    description="my project memory",
-)
+def main():
+    parser = argparse.ArgumentParser(description="Claude API with Cortex memory")
+    parser.add_argument("--memory", default="project.memory",
+                        help="Path to .memory file (default: ./project.memory)")
+    parser.add_argument("--model",  default="claude-opus-4-5",
+                        help="Claude model to use")
+    parser.add_argument("--top-k",  type=int, default=5,
+                        help="Memories to inject per turn (default: 5)")
+    parser.add_argument("--topic",  default=None,
+                        help="Optional topic hint for first query")
+    args = parser.parse_args()
 
-print(f"Memory loaded: {harness}")
-print("Type 'quit' to exit. Memory saves on exit.\n")
+    harness = ClaudeMemoryHarness(
+        args.memory,
+        model=args.model,
+        system_prompt=(
+            "You are a technical assistant with deep context about this project. "
+            "The <memory> block in your context contains relevant facts accumulated "
+            "from prior sessions. Use it to give informed, continuous answers. "
+            "When you reach a decision or solve a problem, state it clearly — "
+            "your response will be stored for future sessions."
+        ),
+        top_k=args.top_k,
+        store_responses=True,
+        min_store_length=80,
+        create_if_missing=True,
+        description=os.path.basename(os.path.dirname(os.path.abspath(args.memory))),
+    )
 
-conversation_history = []
+    s = harness.mem.stats()
+    print(f"\nMemory: {harness.mem}")
+    print(f"  {s['n_memories']} memories  "
+          f"{s['n_clusters']} clusters  "
+          f"{s['query_count']} prior queries")
+    print("\nType 'quit' to exit  |  'status' for memory stats  |  "
+          "'store <text>' to save something explicitly\n")
 
-while True:
-    user_input = input("You: ").strip()
-    if user_input.lower() in ("quit", "exit", "q"):
-        break
-    if not user_input:
-        continue
+    # Optional: warm up retrieval with a topic so first response has context
+    if args.topic and s['n_memories'] > 0:
+        warm = harness.build_system_prompt(args.topic)
+        n_injected = warm.count("\n• ")
+        print(f"[memory] Warmed up on topic '{args.topic}' — "
+              f"{n_injected} memories pre-loaded\n")
 
-    response = harness.chat(user_input)
-    conversation_history.append({"role": "user",    "content": user_input})
-    conversation_history.append({"role": "assistant","content": response})
+    while True:
+        try:
+            user_input = input("You: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
 
-    print(f"\nClaude: {response}\n")
+        if not user_input:
+            continue
 
-    # Show what was retrieved (optional, for debugging)
-    diag = harness.diagnostics()
-    if diag:
-        print(f"  [memory: {diag.get('n_scored', '?')} scored, "
-              f"{diag.get('savings_pct', 0):.0f}% skipped, "
-              f"{diag.get('latency_ms', 0):.1f}ms]\n")
+        # ── Built-in meta commands ─────────────────────────────────────────
+        if user_input.lower() in ("quit", "exit", "q"):
+            break
 
-harness.save()
-print(f"\nSaved: {harness}")
+        if user_input.lower() == "status":
+            s = harness.mem.stats()
+            diag = harness.mem.diagnostics()
+            print(f"\n  Memories:  {s['n_memories']}")
+            print(f"  Clusters:  {s['n_clusters']} ({s['coverage']:.0%} coverage)")
+            print(f"  Queries:   {s['query_count']}")
+            print(f"  Gini:      {s['weight_gini']:.3f}")
+            if diag:
+                print(f"  Last query: {diag.get('n_scored','?')} scored  "
+                      f"{diag.get('savings_pct',0):.0f}% skipped  "
+                      f"{diag.get('latency_ms',0):.1f}ms")
+            print()
+            continue
+
+        if user_input.lower().startswith("store "):
+            text = user_input[6:].strip()
+            if text:
+                harness.store(text)
+                print(f"  [stored] {text[:70]}\n")
+            continue
+
+        # ── Normal chat turn ───────────────────────────────────────────────
+        response = harness.chat(user_input)
+        print(f"\nClaude: {response}\n")
+
+        # Show retrieval diagnostics unobtrusively
+        diag = harness.mem.diagnostics()
+        if diag and diag.get('n_total', 0) > 0:
+            print(f"  [memory: {diag.get('n_scored','?')}/{diag.get('n_total','?')} scored  "
+                  f"{diag.get('savings_pct',0):.0f}% skipped  "
+                  f"{diag.get('latency_ms',0):.1f}ms]\n")
+
+    harness.save()
+    s = harness.mem.stats()
+    print(f"\nSaved: {harness.mem}")
+    print(f"  {s['n_memories']} memories  {s['query_count']} queries")
+
+
+if __name__ == "__main__":
+    main()
