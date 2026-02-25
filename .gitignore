@@ -1,0 +1,13 @@
+# Generated outputs
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Memory files (don't commit these — they're personal/project-specific)
+*.memory
+*.pkl
+
+# Benchmark scratch
+/tmp/
+*.log

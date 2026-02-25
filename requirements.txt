@@ -1,0 +1,14 @@
+"""
+requirements.txt — Cortex memory library dependencies
+
+Core (required):
+  numpy     — array math, sparse operations
+  scipy     — sparse matrix BM25 scoring (falls back to numpy dense if missing)
+
+Optional:
+  anthropic — for ClaudeMemoryHarness
+  openai    — for OpenAIMemoryHarness
+"""
+
+numpy>=1.24
+scipy>=1.11
