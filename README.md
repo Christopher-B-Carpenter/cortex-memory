@@ -111,41 +111,38 @@ Every turn:
 3. Calls Claude
 4. Stores Claude's response asynchronously
 
-### Option 2: Claude Code CLI
+### Option 2: Claude Code (hooks — recommended)
 
-Use `claude_code_inject.py` instead of calling `claude` directly.
+The cleanest integration uses Claude Code's native hook system. Memory injection and storage happen automatically on every turn — no wrapper scripts, no manual steps.
 
-**Inject memory at session start:**
+**How it works:**
+- `UserPromptSubmit` hook queries memory before each prompt → injects top-5 results as context Claude sees automatically
+- `Stop` hook stores Claude's response after each turn → memory grows every session
+
+**Setup (one time):**
+
 ```bash
-python examples/claude_code_inject.py inject
-```
-This queries your `project.memory`, prepends the results to `CLAUDE.md`, then launches Claude Code. Claude reads the injected context at session start.
+# 1. Copy hooks into your project
+mkdir -p .claude/memory/hooks
+cp cortex.py memory.py harness.py .claude/memory/
+cp examples/claude_code_hooks/on_prompt.py .claude/memory/hooks/
+cp examples/claude_code_hooks/on_stop.py   .claude/memory/hooks/
 
-With a focused topic:
-```bash
-python examples/claude_code_inject.py inject --topic "database performance"
-```
+# 2. Add hooks config
+cp examples/claude_code_hooks/settings.json .claude/settings.json
 
-**Sync memory after a session:**
-```bash
-python examples/claude_code_inject.py sync
-```
-This finds the most recent Claude Code transcript, extracts assistant turns, and stores them in `project.memory`.
-
-**Shell alias for convenience:**
-```bash
-# Add to ~/.zshrc or ~/.bashrc
-alias claude-mem='python /path/to/examples/claude_code_inject.py inject'
-```
-
-Then use `claude-mem` instead of `claude` to start memory-augmented sessions.
-
-**After each session, sync:**
-```bash
-python examples/claude_code_inject.py sync
+# 3. Seed initial memory (optional)
+python -c "
+from memory import Memory
+mem = Memory.create(description='my project')
+mem.store('uses Python, FastAPI, PostgreSQL')
+mem.save('.claude/memory/project.memory')
+"
 ```
 
-Over time, the memory file accumulates everything meaningful that came out of your Claude Code sessions. The cluster structure evolves to reflect which topics you actually work on together.
+**Then just run `claude` normally.** Memory injection and storage are automatic.
+
+See `examples/claude_code_hooks/setup.md` for full setup instructions, tuning options, and verification steps.
 
 ### Option 3: OpenAI / any OpenAI-compatible API
 
@@ -221,7 +218,7 @@ Measured on a MacBook Pro (Apple M-series), N=100–10,000 memories, software en
 
 Context coherence (mean co-retrieval count in returned set) grows from 5 to 89 over 200 queries without any preprocessing. Token efficiency is ~22% better than flat retrieval in steady state.
 
-See `benchmark.py` to reproduce. See `paper/` for the full research paper and figures.
+See `benchmark.py` to reproduce.
 
 ---
 
@@ -229,19 +226,19 @@ See `benchmark.py` to reproduce. See `paper/` for the full research paper and fi
 
 ```
 cortex-memory/
-├── cortex.py              # storage engine — VectorizedBM25, Cortex class
-├── memory.py              # portable artifact — Memory class, merge, manifest
-├── harness.py             # LLM integration — MemoryHarness, ClaudeMemoryHarness
-├── benchmark.py           # benchmark suite
-├── make_figures.py        # publication figure generation
+├── cortex.py              # storage engine (VectorizedBM25, Cortex)
+├── memory.py              # portable artifact (Memory class, merge)
+├── harness.py             # LLM integration (MemoryHarness, Claude/OpenAI)
+├── benchmark.py           # reproduce the benchmarks
 ├── requirements.txt
-├── examples/
-│   ├── demo.py                # basic usage, no API needed
-│   ├── claude_api.py          # interactive Claude conversation with memory
-│   └── claude_code_inject.py  # Claude Code CLI integration
-└── paper/
-    ├── cortex_paper_v2.docx   # full research paper
-    └── figures/               # PDF and PNG figures
+└── examples/
+    ├── demo.py                      # basic usage, no API needed
+    ├── claude_api.py                # interactive Claude conversation loop
+    └── claude_code_hooks/           # Claude Code native hook integration
+        ├── on_prompt.py             # UserPromptSubmit — inject memory as context
+        ├── on_stop.py               # Stop — auto-store Claude responses
+        ├── settings.json            # .claude/settings.json template
+        └── setup.md                 # full setup and tuning guide
 ```
 
 ---
