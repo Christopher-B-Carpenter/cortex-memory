@@ -1,6 +1,12 @@
-# Cortex Memory
+<p align="center">
+  <img src="assets/banner.svg" alt="Cortex Memory" width="800"/>
+</p>
 
-**One file. Any LLM. Gets smarter the more you use it.**
+<p align="center">
+  <a href="https://pypi.org/project/llm-cortex-memory/"><img src="https://img.shields.io/pypi/v/llm-cortex-memory?color=00d4ff&style=flat-square" alt="PyPI"></a>
+  <a href="https://github.com/Christopher-B-Carpenter/cortex-memory/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/python-3.9%2B-blue?style=flat-square" alt="Python">
+</p>
 
 Cortex gives LLM conversations persistent memory that lives in a single `.memory` file. No embeddings, no vector database, no API keys for retrieval. Just a file that learns what matters to you and gets better at finding it.
 
