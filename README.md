@@ -242,6 +242,20 @@ python examples/git_merge_driver.py --merge alice.memory bob.memory --output tea
 
 The `-diff` flag hides `.memory` from PR diffs in GitHub/Bitbucket — reviewers won't see binary noise in code reviews. The `linguist-generated` flag excludes it from language stats.
 
+**Limitations and considerations:**
+
+*Path is machine-specific.* The `--install` command writes the absolute path to the script in `~/.gitconfig`. This means every person on every machine must run `--install` from their own clone location — the configuration doesn't travel with the repo. If you move or re-clone the repo, run `--install` again.
+
+*Python environment.* Git calls merge drivers in a non-interactive shell that may not inherit your terminal's PATH or virtual environment. If `numpy`/`scipy` aren't available to the Python git finds, the driver fails silently and git falls back to marking the file as a binary conflict. Verify with `git merge --no-ff` on a test branch after installing. If it fails, set the driver command to use the explicit Python binary path: `python3 /absolute/path/to/git_merge_driver.py %O %A %B`.
+
+*Deletions don't propagate.* `Memory.merge()` is additive — union of both sides. If you called `mem.forget(id)` on one branch to remove a memory, the merge will resurrect it from the other side. There is no delete propagation. If deliberate memory pruning matters for your use case, prune after merging rather than before.
+
+*Base version is unused.* Git passes a base (`%O`), ours (`%A`), and theirs (`%B`) but the driver currently ignores the base and unions ours and theirs directly. It cannot distinguish "added on this branch" from "present since the beginning," which means it cannot propagate deletes or resolve genuine semantic conflicts.
+
+*Does not run in CI.* Git merge drivers are local configuration (`~/.gitconfig`) and are not committed to the repo. They will not run in pipeline environments unless explicitly installed there. For CI-based consolidation, call `Memory.merge()` directly in your pipeline script rather than relying on git's merge driver mechanism.
+
+*Silent failure.* If the driver errors for any reason, git marks the file as conflicted rather than aborting. The merge continues but the `.memory` file may be in an inconsistent state. Check `git status` after any merge that touches `.memory` files.
+
 ---
 
 ## Benchmarks
