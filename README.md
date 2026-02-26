@@ -118,6 +118,8 @@ The cleanest integration uses Claude Code's native hook system. Memory injection
 **How it works:**
 - `UserPromptSubmit` hook queries memory before each prompt → injects top-5 results as context Claude sees automatically
 - `Stop` hook stores Claude's response after each turn → memory grows every session
+- `config.json` controls the source: `project` (repo-specific), `global` (personal cross-project at `~/.claude/memory/`), or `both`
+- `/memory` slash command lets you switch sources, query, and store without leaving the session
 
 **Setup (one time):**
 
@@ -269,10 +271,12 @@ cortex-memory/
     ├── demo.py                      # basic usage, no API needed
     ├── claude_api.py                # interactive Claude conversation loop
     └── claude_code_hooks/           # Claude Code native hook integration
-        ├── on_prompt.py             # UserPromptSubmit — inject memory as context
+        ├── on_prompt.py             # UserPromptSubmit — inject from project/global/both
         ├── on_stop.py               # Stop — auto-store Claude responses
+        ├── config.json              # memory source config (project/global/both/off)
+        ├── memory.md                # /memory slash command for Claude Code
         ├── settings.json            # .claude/settings.json template
-        └── setup.md                 # full setup and tuning guide
+        └── setup.md                 # setup, dev team use cases, troubleshooting
 ```
 
 ---
