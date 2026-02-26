@@ -1,3 +1,36 @@
+Metadata-Version: 2.4
+Name: cortex-memory
+Version: 1.0.0
+Summary: Portable, model-agnostic memory layer for LLM conversations
+Author: Christopher Carpenter
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/Christopher-B-Carpenter/cortex-memory
+Project-URL: Repository, https://github.com/Christopher-B-Carpenter/cortex-memory
+Project-URL: Issues, https://github.com/Christopher-B-Carpenter/cortex-memory/issues
+Keywords: llm,memory,bm25,rag,claude,openai,conversation
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.24
+Requires-Dist: scipy>=1.11
+Provides-Extra: anthropic
+Requires-Dist: anthropic>=0.20; extra == "anthropic"
+Provides-Extra: openai
+Requires-Dist: openai>=1.0; extra == "openai"
+Provides-Extra: all
+Requires-Dist: anthropic>=0.20; extra == "all"
+Requires-Dist: openai>=1.0; extra == "all"
+Dynamic: license-file
+
 # Cortex Memory
 
 A portable, model-agnostic memory layer for LLM conversations.
@@ -5,7 +38,7 @@ A portable, model-agnostic memory layer for LLM conversations.
 Cortex stores conversation memories as plain text, retrieves them with BM25, and builds associative structure from usage patterns over time. The entire memory state — index, weights, clusters — serializes to a single compressed file of approximately **15 bytes per memory**. No embedding model. No database. No API key required for retrieval.
 
 ```python
-from cortex_memory import Memory
+from memory import Memory
 
 mem = Memory.load("project.memory")
 results = mem.query("what did we decide about authentication?")
@@ -30,15 +63,16 @@ Cortex targets the gap: a memory file that travels with a project, survives mode
 ## Installation
 
 ```bash
-pip install cortex-memory
+pip install numpy scipy          # core dependencies
+pip install anthropic            # optional: for ClaudeMemoryHarness
+pip install openai               # optional: for OpenAIMemoryHarness
 ```
 
-Optional LLM integrations:
-
+Clone this repo:
 ```bash
-pip install cortex-memory[anthropic]   # for ClaudeMemoryHarness
-pip install cortex-memory[openai]      # for OpenAIMemoryHarness
-pip install cortex-memory[all]         # both
+git clone https://github.com/your-org/cortex-memory
+cd cortex-memory
+pip install -r requirements.txt
 ```
 
 ---
@@ -48,7 +82,7 @@ pip install cortex-memory[all]         # both
 ### Create a memory store
 
 ```python
-from cortex_memory import Memory
+from memory import Memory
 
 mem = Memory.create(
     description="payments-service development",
@@ -65,8 +99,6 @@ mem.save("project.memory")
 ### Query it anywhere
 
 ```python
-from cortex_memory import Memory
-
 mem = Memory.load("project.memory")
 
 results = mem.query("what security issues did we fix?", top_k=5)
@@ -77,8 +109,6 @@ for r in results:
 ### Merge two memory files
 
 ```python
-from cortex_memory import Memory
-
 mem_a = Memory.load("alice.memory")
 mem_b = Memory.load("bob.memory")
 
@@ -88,45 +118,16 @@ merged.save("team.memory")
 
 ---
 
-## Integration with Claude Code (recommended)
+## Integration with Claude
 
-One-command setup. Memory injection and storage happen automatically on every turn.
-
-```bash
-pip install cortex-memory
-python3 -m cortex_memory install           # project-level setup
-python3 -m cortex_memory install --global  # global (cross-project) setup
-```
-
-This creates hook files, generates `settings.json` with correct absolute paths, and initializes the `.memory` file. Then restart Claude Code — memory is automatic from that point.
-
-**How it works:**
-- `UserPromptSubmit` hook queries memory before each prompt → injects top-5 results as context
-- `Stop` hook stores Claude's response after each turn → memory grows every session
-- `config.json` controls the source: `project`, `global`, `both` (default), or `off`
-
-**Seed initial context (optional):**
+### Option 1: Direct API (recommended for applications)
 
 ```python
-from cortex_memory import Memory
-mem = Memory.load(".claude/memory/project.memory")
-mem.store("uses Python 3.12, FastAPI, PostgreSQL, deployed on AWS ECS")
-mem.store("auth uses JWT with 24h expiry, refresh tokens in Redis")
-mem.save(".claude/memory/project.memory")
-```
-
-See `examples/claude_code_hooks/setup.md` for tuning options, dev team use cases, the `/memory` slash command, and troubleshooting.
-
----
-
-## Integration with Claude API
-
-```python
-from cortex_memory import ClaudeMemoryHarness
+from harness import ClaudeMemoryHarness
 
 harness = ClaudeMemoryHarness(
     "project.memory",
-    model="claude-sonnet-4-6",
+    model="claude-opus-4-5",
     system_prompt="You are a technical assistant with context about this project.",
     top_k=5,
 )
@@ -143,10 +144,45 @@ Every turn:
 3. Calls Claude
 4. Stores Claude's response asynchronously
 
-### OpenAI / any OpenAI-compatible API
+### Option 2: Claude Code (hooks — recommended)
+
+The cleanest integration uses Claude Code's native hook system. Memory injection and storage happen automatically on every turn — no wrapper scripts, no manual steps.
+
+**How it works:**
+- `UserPromptSubmit` hook queries memory before each prompt → injects top-5 results as context Claude sees automatically
+- `Stop` hook stores Claude's response after each turn → memory grows every session
+- `config.json` controls the source: `project` (repo-specific), `global` (personal cross-project at `~/.claude/memory/`), or `both`
+- `/memory` slash command lets you switch sources, query, and store without leaving the session
+
+**Setup (one time):**
+
+```bash
+# 1. Copy hooks into your project
+mkdir -p .claude/memory/hooks
+cp cortex.py memory.py harness.py .claude/memory/
+cp examples/claude_code_hooks/on_prompt.py .claude/memory/hooks/
+cp examples/claude_code_hooks/on_stop.py   .claude/memory/hooks/
+
+# 2. Add hooks config
+cp examples/claude_code_hooks/settings.json .claude/settings.json
+
+# 3. Seed initial memory (optional)
+python -c "
+from memory import Memory
+mem = Memory.create(description='my project')
+mem.store('uses Python, FastAPI, PostgreSQL')
+mem.save('.claude/memory/project.memory')
+"
+```
+
+**Then just run `claude` normally.** Memory injection and storage are automatic.
+
+See `examples/claude_code_hooks/setup.md` for full setup instructions, tuning options, and verification steps.
+
+### Option 3: OpenAI / any OpenAI-compatible API
 
 ```python
-from cortex_memory import OpenAIMemoryHarness
+from harness import OpenAIMemoryHarness
 
 harness = OpenAIMemoryHarness(
     "project.memory",
@@ -158,10 +194,10 @@ response = harness.chat("summarize what we know about the auth service")
 harness.save()
 ```
 
-### Any LLM callable
+### Option 4: Any LLM callable
 
 ```python
-from cortex_memory import MemoryHarness
+from harness import MemoryHarness
 
 def my_llm(messages, system, **kwargs):
     # call any LLM here
@@ -181,7 +217,7 @@ Three layers on top of BM25 full-text retrieval:
 
 **2. Co-retrieval clustering** — when memories A and B appear together in top-K results across multiple queries, they accumulate a co-retrieval count. Above a threshold, they join the same cluster. Clusters emerge from actual usage patterns, not from lexical or semantic similarity.
 
-**3. Two-pass retrieval** — at query time, Pass 1 scores only cluster representatives (O(clusters)), selects the top-matching clusters, and Pass 2 scores only their members. At N=1,000 with ~80 clusters, this scores ~60 memories instead of 1,000. At N=500-2,000, the architecture skips 85-97% of the store while matching flat BM25 precision.
+**3. Two-pass retrieval** — at query time, Pass 1 scores only cluster representatives (O(clusters)), selects the top-matching clusters, and Pass 2 scores only their members. At N=1,000 with ~80 clusters, this scores ~60 memories instead of 1,000. At N=500–2,000, the architecture skips 85–97% of the store while matching flat BM25 precision.
 
 ---
 
@@ -210,7 +246,7 @@ project.memory
 **Merging two memory files:**
 
 ```python
-from cortex_memory import Memory
+from memory import Memory
 
 merged = Memory.merge(
     Memory.load("alice.memory"),
@@ -233,21 +269,21 @@ If you do commit `.memory` files, add these lines to `.gitattributes` so they're
 
 **CI pipelines:**
 
-For automated consolidation after branch merges, call `Memory.merge()` directly in your pipeline script — it's a straightforward Python call with no external dependencies beyond numpy and scipy.
+For automated consolidation after branch merges, call `Memory.merge()` directly in your pipeline script — it's a straightforward Python call with no external dependencies beyond numpy and scipy. The pattern is: fetch the source branch, extract its `.memory` file, load and merge, commit back to the target branch.
 
 ---
 
 ## Benchmarks
 
-Measured on a MacBook Pro (Apple M-series), N=100-10,000 memories, software engineering conversation corpus.
+Measured on a MacBook Pro (Apple M-series), N=100–10,000 memories, software engineering conversation corpus.
 
 | N | Precision@8 vs Flat BM25 | Memories skipped | Load time |
 |---|---|---|---|
 | 100 | +0.05 | 67% | 1ms |
-| 500 | -0.08 | 88% | 4ms |
-| 1,000 | ~0 | 95% | 8ms |
-| 2,000 | ~0 | 96% | - |
-| 10,000 | ~0 | 17% | 81ms |
+| 500 | −0.08 | 88% | 4ms |
+| 1,000 | ≈0 | 95% | 8ms |
+| 2,000 | ≈0 | 96% | — |
+| 10,000 | ≈0 | 17% | 81ms |
 
 Context coherence (mean co-retrieval count in returned set) grows from 5 to 89 over 200 queries without any preprocessing. Token efficiency is ~22% better than flat retrieval in steady state.
 
@@ -259,33 +295,22 @@ See `benchmark.py` to reproduce.
 
 ```
 cortex-memory/
-├── pyproject.toml                         # package metadata (pip install cortex-memory)
-├── src/cortex_memory/                     # installable package
-│   ├── __init__.py                        # public API exports
-│   ├── cortex.py                          # storage engine (VectorizedBM25, Cortex)
-│   ├── memory.py                          # portable artifact (Memory class, merge)
-│   ├── harness.py                         # LLM integration (MemoryHarness, Claude/OpenAI)
-│   └── install.py                         # one-command Claude Code setup
-├── cortex.py                              # standalone (no pip install needed)
-├── memory.py                              # standalone
-├── harness.py                             # standalone
-├── benchmark.py                           # reproduce the benchmarks
+├── cortex.py              # storage engine (VectorizedBM25, Cortex)
+├── memory.py              # portable artifact (Memory class, merge)
+├── harness.py             # LLM integration (MemoryHarness, Claude/OpenAI)
+├── benchmark.py           # reproduce the benchmarks
 ├── requirements.txt
 └── examples/
-    ├── demo.py                            # basic usage, no API needed
-    ├── claude_api.py                      # interactive Claude conversation loop
-    └── claude_code_hooks/                 # Claude Code hook reference
-        ├── on_prompt.py                   # UserPromptSubmit hook
-        ├── on_stop.py                     # Stop hook
-        ├── config.json                    # memory source config
-        ├── memory.md                      # /memory slash command
-        ├── settings.json                  # settings.json template
-        └── setup.md                       # manual setup, tuning, troubleshooting
+    ├── demo.py                      # basic usage, no API needed
+    ├── claude_api.py                # interactive Claude conversation loop
+    └── claude_code_hooks/           # Claude Code native hook integration
+        ├── on_prompt.py             # UserPromptSubmit — inject from project/global/both
+        ├── on_stop.py               # Stop — auto-store Claude responses
+        ├── config.json              # memory source config (project/global/both/off)
+        ├── memory.md                # /memory slash command for Claude Code
+        ├── settings.json            # .claude/settings.json template
+        └── setup.md                 # setup, dev team use cases, troubleshooting
 ```
-
-**Two ways to use:**
-- `pip install cortex-memory` — recommended. Hooks use the installed package.
-- Clone and copy files — standalone, no pip needed. The root `cortex.py`, `memory.py`, `harness.py` work independently.
 
 ---
 

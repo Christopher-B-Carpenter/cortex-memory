@@ -9,10 +9,13 @@ No API key required — uses a mock LLM to show the mechanics.
 """
 
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from memory import Memory
-from harness import MemoryHarness
+try:
+    from cortex_memory import Memory, MemoryHarness
+except ImportError:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from memory import Memory
+    from harness import MemoryHarness
 
 MEMORY_FILE = "/tmp/demo_project.memory"
 

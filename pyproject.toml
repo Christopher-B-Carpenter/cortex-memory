@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortex-memory"
+version = "1.0.0"
+description = "Portable, model-agnostic memory layer for LLM conversations"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Christopher Carpenter" },
+]
+keywords = ["llm", "memory", "bm25", "rag", "claude", "openai", "conversation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.20"]
+openai = ["openai>=1.0"]
+all = ["anthropic>=0.20", "openai>=1.0"]
+
+[project.urls]
+Homepage = "https://github.com/Christopher-B-Carpenter/cortex-memory"
+Repository = "https://github.com/Christopher-B-Carpenter/cortex-memory"
+Issues = "https://github.com/Christopher-B-Carpenter/cortex-memory/issues"
+
+[project.scripts]
+cortex-install = "cortex_memory.install:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,12 @@
+numpy>=1.24
+scipy>=1.11
+
+[all]
+anthropic>=0.20
+openai>=1.0
+
+[anthropic]
+anthropic>=0.20
+
+[openai]
+openai>=1.0

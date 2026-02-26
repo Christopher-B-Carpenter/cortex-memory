@@ -22,9 +22,12 @@ Usage:
 """
 
 import sys, os, argparse
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from harness import ClaudeMemoryHarness
+try:
+    from cortex_memory import ClaudeMemoryHarness
+except ImportError:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from harness import ClaudeMemoryHarness
 
 
 def main():

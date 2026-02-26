@@ -1,0 +1,2 @@
+[console_scripts]
+cortex-install = cortex_memory.install:main
