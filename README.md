@@ -206,55 +206,35 @@ project.memory
 
 ## Team and shared repositories
 
-When multiple people (or multiple branches) update the same `.memory` file, git would normally mark it as a binary conflict. A custom merge driver resolves this automatically using `Memory.merge()`.
+`.memory` files are binary — git cannot diff or auto-merge them. The recommended approach is to keep them out of feature branch commits and merge them explicitly using `Memory.merge()` at the points where you want to consolidate context.
 
-**Setup (one time per machine):**
+**Merging two memory files:**
 
-```bash
-python examples/git_merge_driver.py --install
+```python
+from memory import Memory
+
+merged = Memory.merge(
+    Memory.load("alice.memory"),
+    Memory.load("bob.memory"),
+    description="shared project memory",
+)
+merged.save("team.memory")
 ```
 
-This registers the merge driver in `~/.gitconfig` and adds a `*.memory` entry to `.gitattributes`. Commit `.gitattributes` and share the install command with teammates — that's the only setup required.
+Merge semantics are non-destructive: memories are unioned, weights are max-pooled (whichever side used a memory more wins), and co-retrieval counts are summed.
 
-**What it does on conflict:**
+**Keeping `.memory` out of PR diffs:**
 
-When git would fail on a binary `.memory` conflict, the driver runs instead:
-- Memories: union of both sides
-- Weights: max-pooled (whichever branch found a memory more useful wins)
-- Co-retrieval counts: summed across both sides
-- Clusters: rebuilt from the merged structure
-
-Neither side loses context. The result is committed as the resolved file.
-
-**Merge two files directly (without git):**
-
-```bash
-python examples/git_merge_driver.py --merge alice.memory bob.memory --output team.memory
-```
-
-**Recommended `.gitattributes`:**
+If you do commit `.memory` files, add these lines to `.gitattributes` so they're hidden from code review diffs:
 
 ```
-*.memory merge=cortex-memory
 *.memory -diff
 *.memory linguist-generated=true
 ```
 
-The `-diff` flag hides `.memory` from PR diffs in GitHub/Bitbucket — reviewers won't see binary noise in code reviews. The `linguist-generated` flag excludes it from language stats.
+**CI pipelines:**
 
-**Limitations and considerations:**
-
-*Path is machine-specific.* The `--install` command writes the absolute path to the script in `~/.gitconfig`. This means every person on every machine must run `--install` from their own clone location — the configuration doesn't travel with the repo. If you move or re-clone the repo, run `--install` again.
-
-*Python environment.* Git calls merge drivers in a non-interactive shell that may not inherit your terminal's PATH or virtual environment. If `numpy`/`scipy` aren't available to the Python git finds, the driver fails silently and git falls back to marking the file as a binary conflict. Verify with `git merge --no-ff` on a test branch after installing. If it fails, set the driver command to use the explicit Python binary path: `python3 /absolute/path/to/git_merge_driver.py %O %A %B`.
-
-*Deletions don't propagate.* `Memory.merge()` is additive — union of both sides. If you called `mem.forget(id)` on one branch to remove a memory, the merge will resurrect it from the other side. There is no delete propagation. If deliberate memory pruning matters for your use case, prune after merging rather than before.
-
-*Base version is unused.* Git passes a base (`%O`), ours (`%A`), and theirs (`%B`) but the driver currently ignores the base and unions ours and theirs directly. It cannot distinguish "added on this branch" from "present since the beginning," which means it cannot propagate deletes or resolve genuine semantic conflicts.
-
-*Does not run in CI.* Git merge drivers are local configuration (`~/.gitconfig`) and are not committed to the repo. They will not run in pipeline environments unless explicitly installed there. For CI-based consolidation, call `Memory.merge()` directly in your pipeline script rather than relying on git's merge driver mechanism.
-
-*Silent failure.* If the driver errors for any reason, git marks the file as conflicted rather than aborting. The merge continues but the `.memory` file may be in an inconsistent state. Check `git status` after any merge that touches `.memory` files.
+For automated consolidation after branch merges, call `Memory.merge()` directly in your pipeline script — it's a straightforward Python call with no external dependencies beyond numpy and scipy. The pattern is: fetch the source branch, extract its `.memory` file, load and merge, commit back to the target branch.
 
 ---
 
@@ -288,7 +268,6 @@ cortex-memory/
 └── examples/
     ├── demo.py                      # basic usage, no API needed
     ├── claude_api.py                # interactive Claude conversation loop
-    ├── git_merge_driver.py          # git merge driver for team/shared repos
     └── claude_code_hooks/           # Claude Code native hook integration
         ├── on_prompt.py             # UserPromptSubmit — inject memory as context
         ├── on_stop.py               # Stop — auto-store Claude responses
