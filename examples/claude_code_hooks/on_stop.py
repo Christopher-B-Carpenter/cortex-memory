@@ -35,7 +35,7 @@ MIN_LENGTH = 80    # skip short acks / one-liners
 MAX_LENGTH = 600   # truncate long responses — front usually has the decision
 
 
-def last_assistant_text(transcript_path: str) -> str | None:
+def last_assistant_text(transcript_path: str):
     """Return the most recent assistant message from a JSONL transcript."""
     if not transcript_path or not os.path.exists(transcript_path):
         return None
