@@ -204,6 +204,46 @@ project.memory
 
 ---
 
+## Team and shared repositories
+
+When multiple people (or multiple branches) update the same `.memory` file, git would normally mark it as a binary conflict. A custom merge driver resolves this automatically using `Memory.merge()`.
+
+**Setup (one time per machine):**
+
+```bash
+python examples/git_merge_driver.py --install
+```
+
+This registers the merge driver in `~/.gitconfig` and adds a `*.memory` entry to `.gitattributes`. Commit `.gitattributes` and share the install command with teammates — that's the only setup required.
+
+**What it does on conflict:**
+
+When git would fail on a binary `.memory` conflict, the driver runs instead:
+- Memories: union of both sides
+- Weights: max-pooled (whichever branch found a memory more useful wins)
+- Co-retrieval counts: summed across both sides
+- Clusters: rebuilt from the merged structure
+
+Neither side loses context. The result is committed as the resolved file.
+
+**Merge two files directly (without git):**
+
+```bash
+python examples/git_merge_driver.py --merge alice.memory bob.memory --output team.memory
+```
+
+**Recommended `.gitattributes`:**
+
+```
+*.memory merge=cortex-memory
+*.memory -diff
+*.memory linguist-generated=true
+```
+
+The `-diff` flag hides `.memory` from PR diffs in GitHub/Bitbucket — reviewers won't see binary noise in code reviews. The `linguist-generated` flag excludes it from language stats.
+
+---
+
 ## Benchmarks
 
 Measured on a MacBook Pro (Apple M-series), N=100–10,000 memories, software engineering conversation corpus.
@@ -234,6 +274,7 @@ cortex-memory/
 └── examples/
     ├── demo.py                      # basic usage, no API needed
     ├── claude_api.py                # interactive Claude conversation loop
+    ├── git_merge_driver.py          # git merge driver for team/shared repos
     └── claude_code_hooks/           # Claude Code native hook integration
         ├── on_prompt.py             # UserPromptSubmit — inject memory as context
         ├── on_stop.py               # Stop — auto-store Claude responses
