@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cortex-memory"
+name = "llm-cortex-memory"
 version = "1.0.0"
 description = "Portable, model-agnostic memory layer for LLM conversations"
 readme = "README.md"

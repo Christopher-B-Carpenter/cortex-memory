@@ -30,15 +30,15 @@ Cortex targets the gap: a memory file that travels with a project, survives mode
 ## Installation
 
 ```bash
-pip install cortex-memory
+pip install llm-cortex-memory
 ```
 
 Optional LLM integrations:
 
 ```bash
-pip install cortex-memory[anthropic]   # for ClaudeMemoryHarness
-pip install cortex-memory[openai]      # for OpenAIMemoryHarness
-pip install cortex-memory[all]         # both
+pip install llm-cortex-memory[anthropic]   # for ClaudeMemoryHarness
+pip install llm-cortex-memory[openai]      # for OpenAIMemoryHarness
+pip install llm-cortex-memory[all]         # both
 ```
 
 ---
@@ -93,7 +93,7 @@ merged.save("team.memory")
 One-command setup. Memory injection and storage happen automatically on every turn.
 
 ```bash
-pip install cortex-memory
+pip install llm-cortex-memory
 python3 -m cortex_memory install           # project-level setup
 python3 -m cortex_memory install --global  # global (cross-project) setup
 ```
@@ -259,7 +259,7 @@ See `benchmark.py` to reproduce.
 
 ```
 cortex-memory/
-├── pyproject.toml                         # package metadata (pip install cortex-memory)
+├── pyproject.toml                         # package metadata (pip install llm-cortex-memory)
 ├── src/cortex_memory/                     # installable package
 │   ├── __init__.py                        # public API exports
 │   ├── cortex.py                          # storage engine (VectorizedBM25, Cortex)
@@ -284,7 +284,7 @@ cortex-memory/
 ```
 
 **Two ways to use:**
-- `pip install cortex-memory` — recommended. Hooks use the installed package.
+- `pip install llm-cortex-memory` — recommended. Hooks use the installed package.
 - Clone and copy files — standalone, no pip needed. The root `cortex.py`, `memory.py`, `harness.py` work independently.
 
 ---
