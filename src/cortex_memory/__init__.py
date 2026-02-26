@@ -13,7 +13,7 @@ Usage:
     mem = Memory.load("project.memory")
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 from cortex_memory.memory import Memory
 from cortex_memory.harness import (
