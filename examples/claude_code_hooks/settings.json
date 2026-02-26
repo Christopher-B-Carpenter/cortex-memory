@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/python3 .claude/memory/hooks/on_prompt.py"
+            "command": "/usr/bin/python3 /absolute/path/to/.claude/memory/hooks/on_prompt.py"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/python3 .claude/memory/hooks/on_stop.py"
+            "command": "/usr/bin/python3 /absolute/path/to/.claude/memory/hooks/on_stop.py"
           }
         ]
       }

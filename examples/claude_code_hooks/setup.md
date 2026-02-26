@@ -48,8 +48,12 @@ Memory grows. Next prompt gets better context.
 **2. Add hooks to `.claude/settings.json`:**
 
 Copy `settings.json` from this directory into `.claude/settings.json`
-in your project root, or merge the `hooks` block into your existing
-settings file.
+in your project root, replacing the placeholder paths with the actual
+absolute paths on your machine.
+
+> **Important:** Use absolute paths, not relative ones. Claude Code fires
+> hooks from its own working directory which may not be your repo root,
+> causing relative paths to silently fail.
 
 ```json
 {
@@ -59,7 +63,7 @@ settings file.
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/python3 .claude/memory/hooks/on_prompt.py"
+            "command": "/usr/bin/python3 /Users/you/src/myproject/.claude/memory/hooks/on_prompt.py"
           }
         ]
       }
@@ -69,7 +73,7 @@ settings file.
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/python3 .claude/memory/hooks/on_stop.py"
+            "command": "/usr/bin/python3 /Users/you/src/myproject/.claude/memory/hooks/on_stop.py"
           }
         ]
       }
@@ -78,16 +82,20 @@ settings file.
 }
 ```
 
+Find the right Python path with `which python3`. On macOS this is typically
+`/usr/bin/python3` or `/opt/homebrew/bin/python3`.
+
 **3. Allow the hooks in `.claude/settings.local.json`:**
 
-Claude Code will prompt you to approve hooks on first run. To pre-approve:
+Claude Code will prompt you to approve hooks on first run. To pre-approve
+(use the same absolute paths as above):
 
 ```json
 {
   "permissions": {
     "allow": [
-      "Bash(/usr/bin/python3 .claude/memory/hooks/on_prompt.py:*)",
-      "Bash(/usr/bin/python3 .claude/memory/hooks/on_stop.py:*)"
+      "Bash(/usr/bin/python3 /Users/you/src/myproject/.claude/memory/hooks/on_prompt.py:*)",
+      "Bash(/usr/bin/python3 /Users/you/src/myproject/.claude/memory/hooks/on_stop.py:*)"
     ]
   }
 }
@@ -144,6 +152,41 @@ what project memory context do you have about this session?
 **`on_stop.py`** — adjust `MIN_LENGTH` (default 80) and `MAX_LENGTH` (default 600). Raise `MIN_LENGTH` to skip more short responses. Lower `MAX_LENGTH` if you find stored entries are too verbose.
 
 Both hooks fail silently (exit 0) on any error — they will never break a Claude Code session.
+
+---
+
+## Troubleshooting
+
+**Hooks not firing at all**
+
+Claude Code must be restarted after adding `settings.json` — it doesn't hot-reload hook config. Exit with `/exit` and relaunch.
+
+Verify hooks are loaded by running `/hooks` inside Claude Code. If the hooks appear but show an error, check the command path.
+
+To confirm a hook is firing, add a quick test:
+```bash
+echo '{"prompt": "test"}' | /usr/bin/python3 /path/to/on_prompt.py
+```
+You should see JSON output with `additionalContext`.
+
+**Python version compatibility**
+
+The hooks require Python 3.9+. The `str | None` union type hint syntax requires Python 3.10+. If you see:
+```
+TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
+```
+Remove return type annotations from function signatures in the hook files (they're optional and only for readability).
+
+**Memory file not found**
+
+If the hook fires but injects nothing, check that `project.memory` exists at `.claude/memory/project.memory`. Run the seed script first:
+```bash
+python3 .claude/memory/seed_memory.py
+```
+
+**Context not appearing in responses**
+
+The `additionalContext` is injected into Claude's context silently — it doesn't appear in your chat. You can verify it's being received by asking Claude directly: *"what project memory context do you have?"* If the answer contains project-specific details that aren't in CLAUDE.md, injection is working.
 
 ---
 
