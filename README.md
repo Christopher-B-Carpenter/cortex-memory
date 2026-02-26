@@ -1,8 +1,10 @@
 # Cortex Memory
 
-A portable, model-agnostic memory layer for LLM conversations.
+A memory layer for LLM conversations that gets better the more you use it.
 
-Cortex stores conversation memories as plain text, retrieves them with BM25, and builds associative structure from usage patterns over time. The entire memory state — index, weights, clusters — serializes to a single compressed file of approximately **15 bytes per memory**. No embedding model. No database. No API key required for retrieval.
+Every query shapes the memory store. Memories that keep getting retrieved together form clusters. Memories you actually use rise in weight. After a few hundred queries, the file knows your associative patterns — which concepts you group together, which decisions matter, which context you keep coming back to. That structure is the point. It's not in the text. It's learned from how you use the text.
+
+The whole thing — content, weights, clusters, co-retrieval history — serializes to a single portable file at ~15 bytes per memory. No embedding model, no database, no API key. Switch LLMs, switch machines, hand it to a colleague. The accumulated structure travels with it.
 
 ```python
 from cortex_memory import Memory
@@ -15,15 +17,15 @@ mem.save("project.memory")
 
 ---
 
-## Why
+## Why not just a text file? Why not RAG?
 
-Long-lived projects accumulate context that current tools don't manage well:
+A **text file** with BM25 on top would give you the same retrieval quality on day one. But it treats every entry equally forever. It doesn't know that 5 of your 500 memories are the ones you actually care about, or that "JWT rotation," "Redis sessions," and "token expiry" always come up together when you ask about auth.
 
-- **Plain text logs** grow without structure and have no retrieval
-- **RAG / vector databases** are tied to a specific embedding model — swap models and the index degrades or must be rebuilt
-- **Hosted memory services** (Mem0, Zep) require cloud APIs and don't produce portable files
+A **vector database** learns structure, but it's locked to the embedding model that created it. Switch providers, update models, or try to move the index to a new machine — the structure degrades or has to be rebuilt from scratch. The memory isn't really yours; it belongs to the model that encoded it.
 
-Cortex targets the gap: a memory file that travels with a project, survives model changes, requires no infrastructure, and improves structurally through use.
+**Hosted memory services** (Mem0, Zep) solve the structure problem but introduce API dependencies and don't produce a file you can commit, copy, or own.
+
+Cortex is the intersection: a memory artifact that accumulates personalized retrieval structure over time, doesn't depend on any model, and is portable as a single file. The model-agnostic part isn't the value — it's the prerequisite for portability. The value is the learned associative structure that compounds with use.
 
 ---
 
@@ -175,13 +177,13 @@ response = harness.chat("what did we decide?")
 
 ## How it works
 
-Three layers on top of BM25 full-text retrieval:
+BM25 handles the text matching. Three layers on top handle everything else:
 
-**1. Usage weights** — each memory has a scalar weight that strengthens when the memory is retrieved and decays slowly over time. Decay is computed lazily (no per-query O(N) loop). Frequently-useful memories surface slightly ahead of equally-relevant alternatives.
+**Usage weights** — memories that get retrieved often gain weight. Memories that stop being useful decay. After enough queries, the store has a signal about what matters vs. what's noise. This is behavioral data that doesn't exist in the text itself.
 
-**2. Co-retrieval clustering** — when memories A and B appear together in top-K results across multiple queries, they accumulate a co-retrieval count. Above a threshold, they join the same cluster. Clusters emerge from actual usage patterns, not from lexical or semantic similarity.
+**Co-retrieval clustering** — when memories A and B keep appearing in the same result sets, they accumulate a co-retrieval count and eventually cluster. This is learned associative structure: the store discovers that "JWT rotation," "Redis sessions," and "24h token expiry" belong together because *you* keep retrieving them together — not because they share vocabulary. Retrieving one pulls the others along even if a new query only lexically matches one of them.
 
-**3. Two-pass retrieval** — at query time, Pass 1 scores only cluster representatives (O(clusters)), selects the top-matching clusters, and Pass 2 scores only their members. At N=1,000 with ~80 clusters, this scores ~60 memories instead of 1,000. At N=500-2,000, the architecture skips 85-97% of the store while matching flat BM25 precision.
+**Two-pass retrieval** — clusters make retrieval faster as the store grows. Pass 1 scores cluster representatives, picks the best-matching clusters, Pass 2 scores only their members. At 1,000 memories this skips 85-97% of the store. At 10,000 memories, retrieval still takes ~13ms. The efficiency comes from the structure, and the structure comes from your usage.
 
 ---
 
