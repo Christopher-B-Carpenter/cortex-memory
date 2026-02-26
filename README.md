@@ -1,10 +1,14 @@
 # Cortex Memory
 
-A memory layer for LLM conversations that gets better the more you use it.
+**One file. Any LLM. Gets smarter the more you use it.**
 
-Every query shapes the memory store. Memories that keep getting retrieved together form clusters. Memories you actually use rise in weight. After a few hundred queries, the file knows your associative patterns — which concepts you group together, which decisions matter, which context you keep coming back to. That structure is the point. It's not in the text. It's learned from how you use the text.
+Cortex gives LLM conversations persistent memory that lives in a single `.memory` file. Store it in a repo, copy it to a new machine, plug it into Claude, GPT, or any LLM — it just works. No embeddings to rebuild, no database to run, no API keys for retrieval.
 
-The whole thing — content, weights, clusters, co-retrieval history — serializes to a single portable file at ~15 bytes per memory. No embedding model, no database, no API key. Switch LLMs, switch machines, hand it to a colleague. The accumulated structure travels with it.
+The file isn't just storage. Every query teaches it what matters: which memories you actually use, which ones come up together, which context you keep reaching for. That learned structure compounds over time and travels with the file wherever it goes.
+
+```bash
+pip install llm-cortex-memory
+```
 
 ```python
 from cortex_memory import Memory
@@ -17,30 +21,33 @@ mem.save("project.memory")
 
 ---
 
-## Why not just a text file? Why not RAG?
+## What makes it different
 
-A **text file** with BM25 on top would give you the same retrieval quality on day one. But it treats every entry equally forever. It doesn't know that 5 of your 500 memories are the ones you actually care about, or that "JWT rotation," "Redis sessions," and "token expiry" always come up together when you ask about auth.
+| | Text file | Vector DB / RAG | Hosted memory | **Cortex** |
+|---|---|---|---|---|
+| Portable as a file | Yes | No | No | **Yes** |
+| Works with any LLM | Yes | No (model-locked) | Varies | **Yes** |
+| Learns from usage | No | No | Some | **Yes** |
+| Zero infrastructure | Yes | No | No | **Yes** |
+| Retrieval at scale | No | Yes | Yes | **Yes** |
 
-A **vector database** learns structure, but it's locked to the embedding model that created it. Switch providers, update models, or try to move the index to a new machine — the structure degrades or has to be rebuilt from scratch. The memory isn't really yours; it belongs to the model that encoded it.
+**A text file** has no retrieval and treats every entry equally forever.
 
-**Hosted memory services** (Mem0, Zep) solve the structure problem but introduce API dependencies and don't produce a file you can commit, copy, or own.
+**A vector database** learns structure, but it belongs to the embedding model that created it. Switch models and the index is worthless.
 
-Cortex is the intersection: a memory artifact that accumulates personalized retrieval structure over time, doesn't depend on any model, and is portable as a single file. The model-agnostic part isn't the value — it's the prerequisite for portability. The value is the learned associative structure that compounds with use.
+**Hosted memory** (Mem0, Zep) works but requires cloud APIs. You don't own a file — you rent a service.
+
+**Cortex** is the only memory artifact that is simultaneously portable, model-agnostic, zero-infrastructure, and structurally improved by use.
 
 ---
 
 ## Installation
 
 ```bash
-pip install llm-cortex-memory
-```
-
-Optional LLM integrations:
-
-```bash
-pip install llm-cortex-memory[anthropic]   # for ClaudeMemoryHarness
-pip install llm-cortex-memory[openai]      # for OpenAIMemoryHarness
-pip install llm-cortex-memory[all]         # both
+pip install llm-cortex-memory              # core
+pip install llm-cortex-memory[anthropic]   # + Claude API harness
+pip install llm-cortex-memory[openai]      # + OpenAI API harness
+pip install llm-cortex-memory[all]         # everything
 ```
 
 ---
