@@ -181,6 +181,23 @@ mem.store("auth uses JWT with 24h expiry, refresh tokens in Redis")
 mem.save(".claude/memory/project.memory")
 ```
 
+**Optional: memory statusline**
+
+Add a live memory counter to the Claude Code status bar:
+
+```
+⬡ cortex  +5 this session  │  185 memories  7 clusters  194 queries
+```
+
+Copy `examples/claude_code_hooks/statusline.py` to your memory directory and add to `settings.json`:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "python3 /absolute/path/to/.claude/memory/statusline.py"
+}
+```
+
 See `examples/claude_code_hooks/setup.md` for tuning options, dev team use cases, the `/memory` slash command, and troubleshooting.
 
 ---
