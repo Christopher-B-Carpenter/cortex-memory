@@ -2,13 +2,13 @@
 """
 examples/claude_code_hooks/on_stop.py — Stop hook
 
-Drop this into .claude/memory/hooks/on_stop.py in your project and
-wire it in .claude/settings.json (see setup.md in this directory).
+Drop this into .claude/memory/hooks/on_stop.py and wire it in
+.claude/settings.json (see setup.md).
 
 How it works:
   Claude Code fires Stop when Claude finishes each response.
-  This hook reads the last assistant turn from the session transcript
-  and stores it in project memory automatically.
+  This hook reads the last assistant turn from the session transcript,
+  stores it in memory, and writes session_stats.json for the statusline.
 
   Memory grows every session with no manual steps.
 
@@ -19,23 +19,21 @@ Claude Code stdin schema:
     "transcript_path": "/Users/.../.claude/projects/.../session.jsonl",
     "cwd":             "/Users/.../my-project"
   }
-
-No return value needed — exit 0 silently.
 """
 
-import sys, os, json
+import sys, os, json, time
 
-# ── Resolve paths ─────────────────────────────────────────────────────────────
 HOOK_DIR    = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR  = os.path.dirname(HOOK_DIR)
 MEMORY_FILE = os.path.join(MEMORY_DIR, "project.memory")
+STATS_FILE  = os.path.join(MEMORY_DIR, "session_stats.json")
 sys.path.insert(0, MEMORY_DIR)
 
-MIN_LENGTH = 80    # skip short acks / one-liners
-MAX_LENGTH = 600   # truncate long responses — front usually has the decision
+MIN_LENGTH = 40
+MAX_LENGTH = 2000
 
 
-def last_assistant_text(transcript_path: str):
+def last_assistant_text(transcript_path):
     """Return the most recent assistant message from a JSONL transcript."""
     if not transcript_path or not os.path.exists(transcript_path):
         return None
@@ -50,23 +48,41 @@ def last_assistant_text(transcript_path: str):
                     msg = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                role    = msg.get("role", "")
-                content = msg.get("content", "")
-                # Handle Anthropic content block format
+                # Handle both flat {role, content} and nested {type, message} formats
+                if msg.get("type") == "assistant":
+                    inner = msg.get("message", {})
+                    content = inner.get("content", "")
+                else:
+                    if msg.get("role") != "assistant":
+                        continue
+                    content = msg.get("content", "")
                 if isinstance(content, list):
                     content = " ".join(
                         b.get("text", "") for b in content
                         if isinstance(b, dict) and b.get("type") == "text"
                     )
-                if role == "assistant" and isinstance(content, str):
+                if isinstance(content, str) and content.strip():
                     turns.append(content.strip())
         return turns[-1] if turns else None
     except Exception:
         return None
 
 
+def get_session_id(transcript_path):
+    if not transcript_path:
+        return None
+    return os.path.splitext(os.path.basename(transcript_path))[0]
+
+
+def load_stats():
+    try:
+        with open(STATS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 def main():
-    # ── Parse event ───────────────────────────────────────────────────────────
     try:
         event = json.load(sys.stdin)
     except Exception:
@@ -75,22 +91,43 @@ def main():
     if not os.path.exists(MEMORY_FILE):
         sys.exit(0)
 
-    # ── Extract last response ─────────────────────────────────────────────────
-    text = last_assistant_text(event.get("transcript_path", ""))
-    if not text or len(text) < MIN_LENGTH:
-        sys.exit(0)
+    transcript_path = event.get("transcript_path", "")
+    session_id = get_session_id(transcript_path)
+    text = last_assistant_text(transcript_path)
 
-    # Truncate — the front of a response contains the summary/decision;
-    # the tail is usually code blocks or boilerplate we don't need.
-    if len(text) > MAX_LENGTH:
-        text = text[:MAX_LENGTH].rsplit(" ", 1)[0] + "…"
-
-    # ── Store ─────────────────────────────────────────────────────────────────
     try:
         from memory import Memory
         mem = Memory.load(MEMORY_FILE)
-        mem.store(text)
-        mem.save(MEMORY_FILE)
+        before = mem.memory_count
+
+        if text and len(text) >= MIN_LENGTH:
+            if len(text) > MAX_LENGTH:
+                text = text[:MAX_LENGTH].rsplit(" ", 1)[0] + "…"
+            mem.store(text)
+            mem.save(MEMORY_FILE)
+
+        after = mem.memory_count
+        s = mem.stats()
+
+        # Track session baseline (resets when session ID changes)
+        stats = load_stats()
+        if stats.get("session_id") != session_id:
+            session_baseline = before
+        else:
+            session_baseline = stats.get("session_baseline", before)
+
+        with open(STATS_FILE, "w") as f:
+            json.dump({
+                "session_id":       session_id,
+                "session_baseline": session_baseline,
+                "session_added":    after - session_baseline,
+                "total":            after,
+                "clusters":         s.get("n_clusters", 0),
+                "queries":          s.get("query_count", 0),
+                "coverage":         s.get("coverage", 0),
+                "updated_at":       time.time(),
+            }, f)
+
     except Exception as e:
         sys.stderr.write(f"[memory/on_stop] {e}\n")
 

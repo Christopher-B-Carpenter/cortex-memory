@@ -20,5 +20,9 @@
         ]
       }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "/usr/bin/python3 /absolute/path/to/.claude/memory/statusline.py"
   }
 }
