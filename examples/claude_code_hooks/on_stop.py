@@ -128,7 +128,8 @@ def main():
         if text and len(text) >= MIN_LENGTH:
             if len(text) > MAX_LENGTH:
                 text = text[:MAX_LENGTH].rsplit(" ", 1)[0] + "…"
-            mem.store(text)
+            datestamp = time.strftime("[%Y-%m-%d]")
+            mem.store(text, metadata=datestamp)
             mem.save(MEMORY_FILE)
 
         after = mem.memory_count
