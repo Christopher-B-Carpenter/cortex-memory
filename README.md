@@ -274,6 +274,65 @@ project.memory
 
 ---
 
+## Git-backed memory — one file, any machine, any LLM
+
+Store your `.memory` file in a private GitHub repo and it stays in sync automatically across every machine and LLM you use. Pull when a session starts, push when it ends. One continuous thread of memory everywhere.
+
+**Setup (once):**
+
+```bash
+# Create a private repo on GitHub, then:
+git clone git@github.com:you/memory.git ~/memory
+pip install llm-cortex-memory
+```
+
+**Use with any local LLM (Ollama, LM Studio, etc.):**
+
+```bash
+python examples/git_memory_chat.py --repo ~/memory --model llama3.2
+```
+
+Pulls latest memory on start, pushes after the session. That's it.
+
+**Use with the harness directly:**
+
+```python
+from cortex_memory import OpenAIMemoryHarness
+
+harness = OpenAIMemoryHarness(
+    "~/memory/global.memory",
+    model="llama3.2",
+    base_url="http://localhost:11434/v1",
+    api_key="ollama",
+    git_sync={
+        "enabled": True,
+        "repo_path": "~/memory",
+    },
+)
+
+response = harness.chat("what did we decide about auth?")
+harness.save()  # pushes to git in background
+```
+
+**Add git sync to Claude Code hooks** — extend `~/.claude/memory/config.json`:
+
+```json
+{
+  "source": "global",
+  "top_k": 5,
+  "git_sync": {
+    "enabled": true,
+    "repo_path": "~/memory",
+    "remote": "origin",
+    "branch": "main"
+  }
+}
+```
+
+The hooks pull before each prompt and push after each response (async, non-blocking). Your Claude Code sessions, local LLM sessions, and API sessions all share the same memory file through git.
+
+---
+
 ## Team and shared repositories
 
 `.memory` files are binary — git cannot diff or auto-merge them. The recommended approach is to keep them out of feature branch commits and merge them explicitly using `Memory.merge()` at the points where you want to consolidate context.

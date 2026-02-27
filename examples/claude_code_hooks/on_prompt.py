@@ -34,6 +34,20 @@ def load_config():
         return {"source": "both", "top_k": 5}
 
 
+def maybe_pull(config):
+    """Pull latest memory from git repo if git_sync is configured."""
+    gs_cfg = config.get("git_sync", {})
+    if not gs_cfg.get("enabled"):
+        return
+    try:
+        from cortex_memory.git_sync import GitSync
+        gs = GitSync.from_config(gs_cfg)
+        if gs:
+            gs.pull()
+    except Exception as e:
+        sys.stderr.write(f"[memory/on_prompt] git pull error: {e}\n")
+
+
 def query_source(path, label, prompt, top_k):
     """Query a memory file, return formatted lines or []."""
     if not os.path.exists(path):
@@ -57,6 +71,9 @@ def main():
 
     if source == "off":
         sys.exit(0)
+
+    # Pull latest from git repo before querying (blocking, ~<1s)
+    maybe_pull(config)
 
     try:
         event = json.load(sys.stdin)

@@ -27,7 +27,16 @@ HOOK_DIR    = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR  = os.path.dirname(HOOK_DIR)
 MEMORY_FILE = os.path.join(MEMORY_DIR, "project.memory")
 STATS_FILE  = os.path.join(MEMORY_DIR, "session_stats.json")
+CONFIG_FILE = os.path.join(MEMORY_DIR, "config.json")
 sys.path.insert(0, MEMORY_DIR)
+
+
+def load_config():
+    try:
+        with open(CONFIG_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 MIN_LENGTH = 40
 MAX_LENGTH = 2000
@@ -82,7 +91,23 @@ def load_stats():
         return {}
 
 
+def maybe_push_async(config, memory_path):
+    """Push memory file to git repo in background (non-blocking)."""
+    gs_cfg = config.get("git_sync", {})
+    if not gs_cfg.get("enabled"):
+        return
+    try:
+        from cortex_memory.git_sync import GitSync
+        gs = GitSync.from_config(gs_cfg)
+        if gs:
+            gs.push_async(memory_path)
+    except Exception as e:
+        sys.stderr.write(f"[memory/on_stop] git push error: {e}\n")
+
+
 def main():
+    config = load_config()
+
     try:
         event = json.load(sys.stdin)
     except Exception:
@@ -127,6 +152,9 @@ def main():
                 "coverage":         s.get("coverage", 0),
                 "updated_at":       time.time(),
             }, f)
+
+        # Push to git repo async after storing (non-blocking)
+        maybe_push_async(config, MEMORY_FILE)
 
     except Exception as e:
         sys.stderr.write(f"[memory/on_stop] {e}\n")

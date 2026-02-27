@@ -24,6 +24,7 @@ from cortex_memory.harness import (
     store_session,
 )
 from cortex_memory.cortex import Cortex
+from cortex_memory.git_sync import GitSync
 
 __all__ = [
     "Memory",
@@ -31,6 +32,7 @@ __all__ = [
     "ClaudeMemoryHarness",
     "OpenAIMemoryHarness",
     "Cortex",
+    "GitSync",
     "inject_memory_to_claude_md",
     "store_session",
 ]

@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Callable, List, Dict, Optional, Union
 
 from cortex_memory.memory import Memory
+from cortex_memory.git_sync import GitSync
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +61,7 @@ class MemoryHarness:
         memory_tag: str = "memory",
         create_if_missing: bool = True,
         description: str = "",
+        git_sync: Optional[dict] = None,
     ):
         """
         memory_path:         Path to .memory file (created if missing).
@@ -74,8 +76,12 @@ class MemoryHarness:
         memory_tag:          XML tag name for injected context block.
         create_if_missing:   Create empty .memory file if path not found.
         description:         Description for new memory file.
+        git_sync:            Optional dict with git sync config:
+                             {"enabled": True, "repo_path": "~/memory",
+                              "remote": "origin", "branch": "main"}
+                             Pull happens on init, push happens on save().
         """
-        self.memory_path = Path(memory_path)
+        self.memory_path = Path(memory_path).expanduser()
         self.top_k = top_k
         self.store_responses = store_responses
         self.store_user_messages = store_user_messages
@@ -86,6 +92,11 @@ class MemoryHarness:
         self._llm_fn = llm_fn
         self._conversation: List[Dict] = []
         self._pending_stores: List[threading.Thread] = []
+
+        # Git sync — pull before loading so we have latest memory
+        self._git_sync = GitSync.from_config(git_sync) if git_sync else None
+        if self._git_sync:
+            self._git_sync.pull()
 
         # Load or create memory
         if self.memory_path.exists():
@@ -176,7 +187,11 @@ class MemoryHarness:
     def save(self, path: Optional[Union[str, Path]] = None):
         """Flush any pending async stores and save memory to disk."""
         self._flush_pending()
-        self.mem.save(str(path or self.memory_path))
+        save_path = str(path or self.memory_path)
+        self.mem.save(save_path)
+        # Push to git repo async (non-blocking) if configured
+        if self._git_sync:
+            self._git_sync.push_async(save_path)
 
     # -----------------------------------------------------------------------
     # CLAUDE.md injection (for Claude Code CLI)
